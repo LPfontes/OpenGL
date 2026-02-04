@@ -1,0 +1,255 @@
+/*
+ * Copyright (c) 1993-1997, Silicon Graphics, Inc.
+ * ALL RIGHTS RESERVED 
+ * Permission to use, copy, modify, and distribute this software for 
+ * any purpose and without fee is hereby granted, provided that the above
+ * copyright notice appear in all copies and that both the copyright notice
+ * and this permission notice appear in supporting documentation, and that 
+ * the name of Silicon Graphics, Inc. not be used in advertising
+ * or publicity pertaining to distribution of the software without specific,
+ * written prior permission. 
+ *
+ * THE MATERIAL EMBODIED ON THIS SOFTWARE IS PROVIDED TO YOU "AS-IS"
+ * AND WITHOUT WARRANTY OF ANY KIND, EXPRESS, IMPLIED OR OTHERWISE,
+ * INCLUDING WITHOUT LIMITATION, ANY WARRANTY OF MERCHANTABILITY OR
+ * FITNESS FOR A PARTICULAR PURPOSE.  IN NO EVENT SHALL SILICON
+ * GRAPHICS, INC.  BE LIABLE TO YOU OR ANYONE ELSE FOR ANY DIRECT,
+ * SPECIAL, INCIDENTAL, INDIRECT OR CONSEQUENTIAL DAMAGES OF ANY
+ * KIND, OR ANY DAMAGES WHATSOEVER, INCLUDING WITHOUT LIMITATION,
+ * LOSS OF PROFIT, LOSS OF USE, SAVINGS OR REVENUE, OR THE CLAIMS OF
+ * THIRD PARTIES, WHETHER OR NOT SILICON GRAPHICS, INC.  HAS BEEN
+ * ADVISED OF THE POSSIBILITY OF SUCH LOSS, HOWEVER CAUSED AND ON
+ * ANY THEORY OF LIABILITY, ARISING OUT OF OR IN CONNECTION WITH THE
+ * POSSESSION, USE OR PERFORMANCE OF THIS SOFTWARE.
+ * 
+ * US Government Users Restricted Rights 
+ * Use, duplication, or disclosure by the Government is subject to
+ * restrictions set forth in FAR 52.227.19(c)(2) or subparagraph
+ * (c)(1)(ii) of the Rights in Technical Data and Computer Software
+ * clause at DFARS 252.227-7013 and/or in similar or successor
+ * clauses in the FAR or the DOD or NASA FAR Supplement.
+ * Unpublished-- rights reserved under the copyright laws of the
+ * United States.  Contractor/manufacturer is Silicon Graphics,
+ * Inc., 2011 N.  Shoreline Blvd., Mountain View, CA 94039-7311.
+ *
+ * OpenGL(R) is a registered trademark of Silicon Graphics, Inc.
+ */
+
+/*
+ * robot.c
+ * This program shows how to composite modeling transformations
+ * to draw translated and rotated hierarchical models.
+ * Interaction:  pressing the s and e keys (shoulder and elbow)
+ * alters the rotation of the robot arm.
+ */
+#include <GL/glut.h>
+#include <stdlib.h>
+typedef struct {
+    float r;
+    float g;
+    float b;
+} Color;
+
+typedef struct {
+    GLfloat x;
+    GLfloat y;
+    GLfloat z;
+} Escala;
+Color cinza = {0.5f, 0.5f, 0.5f};
+Color azul  = {0.0f, 0.0f, 0.8f};
+Color verde = {0.0f, 0.8f, 0.0f};
+Color amarelo = {0.8f, 0.8f, 0.0f};
+Color vermelho = {0.8f, 0.0f, 0.0f};
+Escala escalaBase = {2.0f, 0.2f, 2.0f};
+Escala escalaBracoSuperior = {2.0f, 0.4f, 1.0f};
+Escala escalaBracoInferior = {2.0f, 0.4f, 1.0f};
+Escala escalaPulso = {0.4f, 0.4f, 0.8f};
+Escala escalaDedos = {0.4f, 0.1f, 0.1f};
+
+static int anguloBase = 0;
+static int anguloOmbro = 35;     
+static int anguloCotovelo = -35;   
+static int torcaoAntebraco = 0;
+static int anguloPulso = 0;
+static int anguloDedos = 0;
+
+void init(void) 
+{
+   glClearColor (0.0, 0.0, 0.0, 0.0);
+   glShadeModel (GL_FLAT);
+}
+
+void desenhaTexto(char *string, float x, float y) {
+    glRasterPos2f(x, y); // Define a posição onde o texto começa
+    while (*string) {
+        glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, *string);
+        string++;
+    }
+}
+
+void legenda() {
+   glMatrixMode(GL_PROJECTION);
+    glPushMatrix(); // Salva a projeção (perspectiva)
+    glLoadIdentity();
+    gluOrtho2D(0, 800, 0, 800); // Cria um sistema 2D fixo (baseado no tamanho da janela)
+
+    glMatrixMode(GL_MODELVIEW);
+    glPushMatrix();
+    glLoadIdentity();
+
+    glColor3f(1.0, 1.0, 1.0); // Cor branca para o texto
+    desenhaTexto("COMANDOS:", 10, 770);
+    desenhaTexto("A/D: Base | S/W: Ombro | E/Q: Cotovelo", 10, 750);
+    desenhaTexto("R/T: Torcao | Y/U: Pulso | F/G: Dedos", 10, 730);
+    desenhaTexto("ESC: Sair", 10, 710);
+
+    glPopMatrix();
+    glMatrixMode(GL_PROJECTION);
+    glPopMatrix(); // Restaura a projeção original
+    glMatrixMode(GL_MODELVIEW);
+}
+
+// Função auxiliar para desenhar o cubo sólido com a borda aramada
+void desenhaCuboComBorda(Color cor) {
+    glColor3f(cor.r, cor.g, cor.b);
+    glutSolidCube(1.0);
+    glColor3f(1.0, 1.0, 1.0); // branca
+    glutWireCube(1.01); // Borda um pouco maior para destacar      
+}
+
+void desenhaBase() {
+    glRotatef((GLfloat) anguloBase, 0.0, 1.0, 0.0); // Rotaciona a base em torno do eixo Y
+    glPushMatrix();
+        glScalef(escalaBase.x, escalaBase.y, escalaBase.z); // Escala a base
+        desenhaCuboComBorda(cinza);
+    glPopMatrix();
+}
+
+void desenhaOmbro() {
+    glTranslatef(0.0, escalaBase.y / 2.0f, 0.0); // Move para o topo da base 
+    glRotatef((GLfloat) anguloOmbro, 0.0, 0.0, 1.0); // Rotaciona o ombro em torno do eixo Z
+    glTranslatef(escalaBracoSuperior.x / 2.0f, 0.0, 0.0);  // Move para o centro do braço superior
+    glPushMatrix(); 
+        glScalef(escalaBracoSuperior.x, escalaBracoSuperior.y, escalaBracoSuperior.z);
+        desenhaCuboComBorda(azul);
+    glPopMatrix(); 
+}
+
+void desenhaCotovelo() {
+    glTranslatef(escalaBracoSuperior.x / 2.0f, 0.0, 0.0); // Move para o final do braço superior
+    glRotatef((GLfloat) anguloCotovelo, 0.0, 0.0, 1.0); // Rotaciona o cotovelo em torno do eixo Z
+    glRotatef((GLfloat) torcaoAntebraco, 1.0, 0.0, 0.0); // Torção do antebraço em torno do eixo X
+    glTranslatef(escalaBracoInferior.x / 2.0f, 0.0, 0.0);  // Move para o centro do braço inferior
+    glPushMatrix();
+        glScalef(escalaBracoInferior.x, escalaBracoInferior.y, escalaBracoInferior.z);
+        desenhaCuboComBorda(verde);
+    glPopMatrix();
+}
+
+void desenhaPulso() {
+    glTranslatef(escalaBracoInferior.x / 2.0f, 0.0, 0.0);  // Move para o final do braço inferior
+    glRotatef((GLfloat) anguloPulso, 0.0, 0.0, 1.0); // Rotaciona o pulso em torno do eixo Z
+    glTranslatef(escalaPulso.x / 2.0f, 0.0, 0.0);  // Move para o centro do pulso
+    glPushMatrix();
+        glScalef(escalaPulso.x, escalaPulso.y, escalaPulso.z);
+        desenhaCuboComBorda(amarelo);
+    glPopMatrix();
+}
+
+void desenhaDedos() {
+    glTranslatef(escalaPulso.x / 2.0f, 0.0, 0.0);
+    
+    // Dedo Superior
+    glPushMatrix();
+        glTranslatef(0.0, escalaPulso.y / 4.0f, 0.0); // Move para a posição do dedo superior
+        glRotatef((GLfloat) anguloDedos, 0.0, 0.0, 1.0); // Rotaciona os dedos em torno do eixo Z
+        glTranslatef(escalaDedos.x / 2.0f, 0.0, 0.0); // Move para o centro do dedo
+        glScalef(escalaDedos.x, escalaDedos.y, escalaDedos.z);
+        desenhaCuboComBorda(vermelho);
+    glPopMatrix();
+
+    // Dedo Inferior
+    glPushMatrix();
+        glTranslatef(0.0, -escalaPulso.y / 4.0f, 0.0); // Move para a posição do dedo inferior 
+        glRotatef((GLfloat) -anguloDedos, 0.0, 0.0, 1.0); // Rotaciona os dedos em torno do eixo Z
+        glTranslatef(escalaDedos.x / 2.0f, 0.0, 0.0); // Move para o centro do dedo
+        glScalef(escalaDedos.x, escalaDedos.y, escalaDedos.z);
+        desenhaCuboComBorda(vermelho);
+    glPopMatrix();
+}
+void display(void) {
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // Limpa a tela e o buffer de profundidade
+    glLoadIdentity();
+    
+    glTranslatef(-1.0, -1.0, -7.0); // Posiciona a câmera
+
+    desenhaBase();
+    desenhaOmbro();
+    desenhaCotovelo();
+    desenhaPulso();
+    desenhaDedos();
+    legenda();
+    glutSwapBuffers();  // Troca os buffers para exibir a cena renderizada
+}
+void keyboard(unsigned char key, int x, int y) {
+   int limit_abertura = 45;
+   int limit_fechamento = -10;
+   switch (key) {
+        case 'a': anguloBase = (anguloBase + 5) % 360; break;
+        case 'd': anguloBase = (anguloBase - 5) % 360; break;
+        case 's': anguloOmbro = (anguloOmbro + 5) % 360; break;
+        case 'w': anguloOmbro = (anguloOmbro - 5) % 360; break;
+        case 'e': anguloCotovelo = (anguloCotovelo + 5) % 360; break;
+        case 'q': anguloCotovelo = (anguloCotovelo - 5) % 360; break;
+        case 'r': torcaoAntebraco = (torcaoAntebraco + 5) % 360; break;
+        case 't': torcaoAntebraco = (torcaoAntebraco - 5) % 360; break;
+        case 'y': anguloPulso = (anguloPulso + 5) % 360; break;
+        case 'u': anguloPulso = (anguloPulso - 5) % 360; break;
+        case 'f': if (anguloDedos < limit_abertura) anguloDedos += 5; break;
+        case 'g': if (anguloDedos > limit_fechamento) anguloDedos -= 5; break;
+        case 'P':
+            anguloBase = 0; anguloOmbro = 0; anguloCotovelo = 0;
+            torcaoAntebraco = 0; anguloPulso = 0; anguloDedos = 0;
+            break;
+        case 27: exit(0); break;
+   }
+   glutPostRedisplay();
+}
+void reshape (int w, int h)
+{
+   glViewport (0, 0, (GLsizei) w, (GLsizei) h); 
+   glMatrixMode (GL_PROJECTION);
+   glLoadIdentity ();
+   gluPerspective(65.0, (GLfloat) w/(GLfloat) h, 1.0, 20.0);
+   glMatrixMode(GL_MODELVIEW);
+   glLoadIdentity();
+   glTranslatef (0.0, 0.0, -5.0);
+}
+
+int main(int argc, char** argv)
+{
+    int larguraJanela = 800;
+    int alturaJanela = 800;
+
+    glutInit(&argc, argv);
+    glutInitDisplayMode (GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
+    
+    // 1. Obtém a resolução do monitor (Screen)
+    int larguraTela = glutGet(GLUT_SCREEN_WIDTH);
+    int alturaTela = glutGet(GLUT_SCREEN_HEIGHT);
+
+    int posX = (larguraTela - larguraJanela) / 2;
+    int posY = (alturaTela - alturaJanela) / 2;
+
+    glutInitWindowSize (larguraJanela, alturaJanela); 
+    glutInitWindowPosition (posX, posY); // Define a posição calculada
+    
+    glutCreateWindow (argv[0]);
+    
+    init ();
+    glutDisplayFunc(display); 
+    glutReshapeFunc(reshape);
+    glutKeyboardFunc(keyboard);
+    glutMainLoop();
+    return 0;
+}
